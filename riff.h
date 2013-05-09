@@ -107,21 +107,17 @@ struct RiffChunk
     //
     // Pointer to the next chunk
     //
+    // Chunks are aligned to 16-bit
+    //
 
     RiffChunk* next()
     {
-        uintptr_t align = 2;    // chunks are aligned to 16-bit
-        uintptr_t alignMinusOne = align - 1;
-        uintptr_t p = reinterpret_cast<uintptr_t>(data + size);
-        return reinterpret_cast<RiffChunk*>((p + alignMinusOne) & ~alignMinusOne);
+        return reinterpret_cast<RiffChunk*>(alignPointer(data + size, 2));
     }
 
     const RiffChunk* next() const
     {
-        uintptr_t align = 2;    // chunks are aligned to 16-bit
-        uintptr_t alignMinusOne = align - 1;
-        uintptr_t p = reinterpret_cast<uintptr_t>(data + size);
-        return reinterpret_cast<const RiffChunk*>((p + alignMinusOne) & ~alignMinusOne);
+        return reinterpret_cast<const RiffChunk*>(alignPointer(data + size, 2));
     }
 
     //
@@ -143,6 +139,13 @@ struct RiffChunk
 protected:
     RiffChunk()
     {}
+
+    void* alignPointer(const void* pointer, int alignment) const
+    {
+        uintptr_t p = reinterpret_cast<uintptr_t>(pointer);
+        uintptr_t alignmentMinusOne = alignment - 1;
+        return reinterpret_cast<void*>((p + alignmentMinusOne) & ~alignmentMinusOne);
+    }
 };
 
 //
