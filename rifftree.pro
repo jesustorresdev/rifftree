@@ -19,3 +19,5 @@ SOURCES += main.cpp
 
 HEADERS += \
     riff.h
+
+QMAKE_CXXFLAGS += -std=c++0x

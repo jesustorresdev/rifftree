@@ -36,6 +36,7 @@ namespace riff
 //
 
 #pragma pack(4)
+template <typename T = uint8_t>
 struct RiffChunk
 {
     //
@@ -44,7 +45,7 @@ struct RiffChunk
 
     uint32_t type;
     uint32_t size;
-    uint8_t data[];
+    T data[];
 
     //
     // Known types of chunks
@@ -80,28 +81,26 @@ struct RiffChunk
     // Pointers to data section
     //
 
-    template <typename T>
     T* begin()
     {
-       return reinterpret_cast<T*>(data);
+       return data;
     }
 
-    template <typename T>
     const T* begin() const
     {
-       return reinterpret_cast<const T*>(data);
+       return data;
     }
 
-    template <typename T>
     T* end()
     {
-        return reinterpret_cast<T*>(data + size);
+        return reinterpret_cast<T*>(
+                    reinterpret_cast<const uint8_t*>(data) + size);
     }
 
-    template <typename T>
     const T* end() const
     {
-        return reinterpret_cast<const T*>(data + size);
+        return reinterpret_cast<const T*>(
+                    reinterpret_cast<const uint8_t*>(data) + size);
     }
 
     //
@@ -110,30 +109,32 @@ struct RiffChunk
     // Chunks are aligned to 16-bit
     //
 
-    RiffChunk* next()
+    template <typename C = uint8_t>
+    RiffChunk<C>* next()
     {
-        return reinterpret_cast<RiffChunk*>(alignPointer(data + size, 2));
+        return reinterpret_cast<RiffChunk<C>*>(alignPointer(data + size, 2));
     }
 
-    const RiffChunk* next() const
+    template <typename C = uint8_t>
+    const RiffChunk<C>* next() const
     {
-        return reinterpret_cast<const RiffChunk*>(alignPointer(data + size, 2));
+        return reinterpret_cast<const RiffChunk<C>*>(alignPointer(data + size, 2));
     }
 
     //
     // Type conversion to other types of chunk
     //
 
-    template <typename T>
-    T* castTo()
+    template <typename C>
+    C* castTo()
     {
-        return static_cast<T*>(this);
+        return reinterpret_cast<C*>(this);
     }
 
-    template <typename T>
-    const T* castTo() const
+    template <typename C>
+    const C* castTo() const
     {
-        return static_cast<const T*>(this);
+        return reinterpret_cast<const C*>(this);
     }
 
 protected:
@@ -149,28 +150,43 @@ protected:
 };
 
 //
+// Class RiffListFields
+//
+// Additional fields of a RIFF list chunk
+//
+
+#pragma pack(4)
+template <typename T = uint8_t>
+struct RiffListFields {
+    uint32_t listType;
+    RiffChunk<T> chunks[];
+};
+
+//
 // Class RiffList
 //
 // Data type of list RIFF chunks
 //
 
 #pragma pack(4)
-struct RiffList : public RiffChunk
+template <typename T = uint8_t>
+struct RiffList : public RiffChunk<RiffListFields<T> >
 {
-    uint32_t listType;
-    RiffChunk chunks[];
+    typedef RiffChunk<RiffListFields<T> > BaseType;     // Type of base class
 
     std::string listTypeToStdString() const
     {
-        return std::string(reinterpret_cast<const char*>(&listType),
-                           sizeof(listType));
+        return std::string(
+                    reinterpret_cast<const char*>(&BaseType::data[0].listType),
+                sizeof(&BaseType::data[0].listType));
     }
 
 #if defined QT_VERSION
     QString listTypeToQString() const
     {
-        return QString::fromLatin1(reinterpret_cast<const char*>(&listType),
-                                   sizeof(listType));
+        return QString::fromLatin1(
+                    reinterpret_cast<const char*>(&BaseType::data[0].listType),
+                sizeof(&BaseType::data[0].listType));
     }
 #endif /* QT_VERSION */
 
@@ -178,19 +194,29 @@ struct RiffList : public RiffChunk
     // Pointer to data section
     //
 
-    RiffChunk* begin()
+    RiffChunk<T>* begin()
     {
-       return chunks;
+       return BaseType::data[0].chunks;
     }
 
-    const RiffChunk* begin() const
+    const RiffChunk<T>* begin() const
     {
-       return chunks;
+       return BaseType::data[0].chunks;
+    }
+
+    RiffChunk<T>* end()
+    {
+       return reinterpret_cast<RiffChunk<T>*>(BaseType::end());
+    }
+
+    const RiffChunk<T>* end() const
+    {
+        return reinterpret_cast<const RiffChunk<T>*>(BaseType::end());
     }
 
 private:
     RiffList()
-        : RiffChunk()
+        : RiffChunk<T>()
     {}
 };
 
