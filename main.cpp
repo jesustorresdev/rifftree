@@ -56,24 +56,24 @@ void printHelp(const QString& programName)
 // Traverse a RIFF tree from specified chunk and print the structure
 //
 
-void traverseRiff(const riff::RiffList<>* listChunk, int indentWidth)
+void traverseRiff(const riff::RiffList<>::Chunk* listChunk, int indentWidth)
 {
-    cout << QString(indentWidth, ' ') << QString("%1(%2) ->\n")
-            .arg(listChunk->typeToQString())
-            .arg(listChunk->listTypeToQString());
+    cout << QString(indentWidth, ' ')
+         << QString("%1(%2) ->\n").arg(listChunk->typeToQString())
+                                  .arg(listChunk->data->listTypeToQString());
 
     QString childIndent(indentWidth + OUTPUT_IDENT_WDITH, ' ');
 
-    const riff::RiffChunk<>* child = listChunk->begin();
-    const riff::RiffChunk<>* end = listChunk->end();
+    const riff::RiffChunk<>* child = listChunk->data->chunks;
+    const void* end = listChunk->dataEnd();
     while (child < end) {
         if (child->hasTypeList())
-            traverseRiff(child->castTo<const riff::RiffList<> >(),
+            traverseRiff(child->castTo<riff::RiffList<> >(),
                          indentWidth + OUTPUT_IDENT_WDITH);
         else
             cout << childIndent << child->typeToQString() << endl;
 
-        child = child->next();
+        child = child->nextChunk();
     }
 }
 
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
     }
 
     // Traverse the RIFF file and print its structure
-    traverseRiff(chunk->castTo<const riff::RiffList<> >(), 0);
+    traverseRiff(chunk->castTo<riff::RiffList<> >(), 0);
 
 //    return a.exec();
 }
