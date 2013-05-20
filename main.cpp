@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
     }
 
     // QFile::map doesn't allow options like MAP_HUGETLB, MAP_PRIVATE or MAP_LOCKED
-    // but it is nore portable between different operating systems than mmap().
+    // but it is more portable between different operating systems than mmap().
     // Previously, we tried to use MAP_HUGETLB with mmap() syscall but it is only
     // valid for anonymous memory.
     uchar* buffer = rifffile.map(0, rifffile.size());
