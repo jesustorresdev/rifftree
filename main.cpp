@@ -24,6 +24,7 @@
 #include <QString>
 #include <QStringList>
 #include <QTextStream>
+#include <QVector>
 
 #include <getopt.h>
 
@@ -90,9 +91,12 @@ int main(int argc, char *argv[])
 
     // Retrieve command line arguments from Qt and parse options
     int appArgC = a.arguments().size();
+    QVector<QByteArray> arguments;
     char** appArgV = new char*[appArgC];
-    for (int i = 0; i < appArgC; ++i)
-        appArgV[i] = a.arguments()[i].toLocal8Bit().data();
+    for (int i = 0; i < appArgC; ++i) {
+        arguments.push_back(a.arguments()[i].toLocal8Bit());
+        appArgV[i] = arguments.back().data();
+    }
 
     const char shortOptions[] = "h";
     option longOptions[] = {
