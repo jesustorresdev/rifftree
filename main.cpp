@@ -129,4 +129,8 @@ int main(int argc, char *argv[])
 
     // Traverse the RIFF file and print its structure
     traverseRiff(chunk->castTo<riff::RiffList<> >(), 0);
+
+    // Cleanup
+    rifffile.unmap(g_buffer);
+    rifffile.close();
 }
