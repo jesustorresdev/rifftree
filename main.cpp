@@ -64,7 +64,7 @@ void traverseRiff(const riff::RiffList<>::Chunk* listChunk, int indentWidth)
     const riff::RiffChunk<>* child = listChunk->data->chunks;
     const void* end = listChunk->dataEnd();
     while (child < end) {
-        if (child->hasTypeList()) {
+        if (child->hasTypeList() || child->hasTypeRiff()) {
             traverseRiff(child->castTo<riff::RiffList<> >(), childIndent);
         } else {
             cout.setFieldWidth(15);
