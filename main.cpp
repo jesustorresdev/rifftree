@@ -1,3 +1,7 @@
+// Copyright (C) 2013 Jesús Torres <jmtorres@ull.es>
+// Copyright (C) 2025 Pedro López-Cabanillas <plcl@users.sf.net>
+// SPDX-License-Identifier: Apache-2.0
+
 /*
  * main.cpp - RIFF tree structure viewer
  *
@@ -18,19 +22,18 @@
 
 #define USE_MMAP
 
+#include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QFile>
-#include <QFileInfo>
 #include <QString>
 #include <QStringList>
 #include <QTextStream>
-#include <QVector>
-
-#include <getopt.h>
 
 #include "riff.h"
 
-#define OUTPUT_IDENT_WDITH      4
+#define OUTPUT_IDENT_WIDTH 4
+
+static uint8_t *g_buffer{nullptr};
 
 //
 // Alias for standard output and standard error based on QTextStream.
@@ -41,39 +44,36 @@ QTextStream cout(stdout, QIODevice::WriteOnly);
 QTextStream cerr(stderr, QIODevice::WriteOnly);
 
 //
-// Print help message to standard error
-//
-
-void printHelp(const QString& programName)
-{
-    cerr << QString("Usage: %1 [options] FILE\n").arg(programName);
-    cerr << "Parses a RIFF file and show its tree structure.\n";
-    cerr << endl;
-    cerr << "  -h, --help     display this help and exit\n";
-    cerr << endl;
-}
-
-//
 // Traverse a RIFF tree from specified chunk and print the structure
 //
 
 void traverseRiff(const riff::RiffList<>::Chunk* listChunk, int indentWidth)
 {
-    cout << QString(indentWidth, ' ')
-         << QString("%1(%2) ->\n").arg(listChunk->typeToQString())
-                                  .arg(listChunk->data->listTypeToQString());
+    cout.setFieldWidth(15);
+    cout << listChunk->offset(g_buffer);
+    cout.setFieldWidth(indentWidth);
+    cout << ' ';
+    cout.setFieldWidth(0);
+    cout << QString("%1(%2) ->")
+                .arg(listChunk->typeToQString())
+                .arg(listChunk->data->listTypeToQString())
+         << " size=" << listChunk->size << Qt::endl;
 
-    QString childIndent(indentWidth + OUTPUT_IDENT_WDITH, ' ');
+    int childIndent = indentWidth + OUTPUT_IDENT_WIDTH;
 
     const riff::RiffChunk<>* child = listChunk->data->chunks;
     const void* end = listChunk->dataEnd();
     while (child < end) {
-        if (child->hasTypeList())
-            traverseRiff(child->castTo<riff::RiffList<> >(),
-                         indentWidth + OUTPUT_IDENT_WDITH);
-        else
-            cout << childIndent << child->typeToQString() << endl;
-
+        if (child->hasTypeList()) {
+            traverseRiff(child->castTo<riff::RiffList<> >(), childIndent);
+        } else {
+            cout.setFieldWidth(15);
+            cout << child->offset(g_buffer);
+            cout.setFieldWidth(childIndent);
+            cout << ' ';
+            cout.setFieldWidth(0);
+            cout << child->typeToQString() << " size=" << child->size << Qt::endl;
+        }
         child = child->nextChunk();
     }
 }
@@ -84,58 +84,28 @@ void traverseRiff(const riff::RiffList<>::Chunk* listChunk, int indentWidth)
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication a(argc, argv);
+    QCoreApplication::setApplicationName(QT_STRINGIFY(PROGRAM));
+    QCoreApplication::setApplicationVersion(QT_STRINGIFY(VERSION));
 
-    QString programName = QFileInfo(
-                QCoreApplication::applicationFilePath()).fileName();
+    QCoreApplication app(argc, argv);
+    QCommandLineParser parser;
+    parser.addHelpOption();
+    parser.addVersionOption();
+    parser.addPositionalArgument("file", "RIFF file");
+    parser.process(app);
 
     // Retrieve command line arguments from Qt and parse options
-    int appArgC = a.arguments().size();
-    QVector<QByteArray> arguments;
-    char** appArgV = new char*[appArgC];
-    for (int i = 0; i < appArgC; ++i) {
-        arguments.push_back(a.arguments()[i].toLocal8Bit());
-        appArgV[i] = arguments.back().data();
-    }
+    QStringList args = parser.positionalArguments();
 
-    const char shortOptions[] = "h";
-    option longOptions[] = {
-        {"help", 0, NULL, 'h'}
-    };
-
-    opterr = 0;             // disable getopt error messages
-
-    int lastOption;
-    while ((lastOption = getopt_long(appArgC, appArgV,
-                                     shortOptions, longOptions, NULL)) != -1)
-    {
-        switch (lastOption) {
-        case '?':
-            cerr << QString("%1: invalid option -- '%2'\n")
-                    .arg(programName)
-                    .arg(static_cast<char>(optopt));
-            cerr << endl;
-            printHelp(programName);
-            return 1;
-
-        case 'h':
-            printHelp(programName);
-            return 0;
-
-        default:
-            abort();
-        }
-    }
-
-    if (optind == appArgC) {
-        printHelp(programName);
+    if (args.size() == 0) {
+        cerr << parser.helpText();
         return 99;
     }
 
     // Map the RIFF file into memory
-    QFile rifffile(appArgV[optind]);
+    QFile rifffile(args.first());
     if (! rifffile.open(QIODevice::ReadOnly)) {
-        cerr << QString("%1: %2\n").arg(programName).arg(rifffile.errorString());
+        cerr << QString("%1: %2\n").arg(app.applicationName()).arg(rifffile.errorString());
         return 10;
     }
 
@@ -143,24 +113,20 @@ int main(int argc, char *argv[])
     // but it is more portable between different operating systems than mmap().
     // Previously, we tried to use MAP_HUGETLB with mmap() syscall but it is only
     // valid for anonymous memory.
-    uchar* buffer = rifffile.map(0, rifffile.size());
-    if(buffer == NULL) {
-        cerr << QString("%1: %2\n")
-                .arg(programName)
-                .arg(rifffile.errorString());
+    g_buffer = rifffile.map(0, rifffile.size());
+    if (g_buffer == NULL) {
+        cerr << QString("%1: %2\n").arg(app.applicationName()).arg(rifffile.errorString());
         return 11;
     }
 
-    riff::RiffChunk<>* chunk = reinterpret_cast<riff::RiffChunk<>*>(buffer);
+    riff::RiffChunk<> *chunk = reinterpret_cast<riff::RiffChunk<> *>(g_buffer);
     if (! chunk->hasTypeRiff()) {
         cerr << QString("%1: '%2' is not a valid RIFF file\n")
-                .arg(programName)
-                .arg(rifffile.fileName());
+                    .arg(app.applicationName())
+                    .arg(rifffile.fileName());
         return 20;
     }
 
     // Traverse the RIFF file and print its structure
     traverseRiff(chunk->castTo<riff::RiffList<> >(), 0);
-
-//    return a.exec();
 }
