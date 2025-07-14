@@ -57,7 +57,7 @@ struct RiffChunk
 
     uint32_t type;
     uint32_t size;
-    D data[];
+    D data[1];
 
     //
     // Known types of chunks
@@ -165,7 +165,7 @@ struct RiffList
     typedef RiffChunk<RiffList<D> > Chunk;
 
     uint32_t listType;
-    RiffChunk<D> chunks[];
+    RiffChunk<D> chunks[1];
 
     std::string listTypeToStdString() const
     {
