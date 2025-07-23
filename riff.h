@@ -1,3 +1,7 @@
+// Copyright (C) 2013 Jesús Torres <jmtorres@ull.es>
+// Copyright (C) 2025 Pedro López-Cabanillas <plcl@users.sf.net>
+// SPDX-License-Identifier: Apache-2.0
+
 /*
  * riff.h - RIFF file format data types
  *
@@ -19,11 +23,11 @@
 #ifndef RIFF_H
 #define RIFF_H
 
-#if defined QT_VERSION
+#if defined(QT_CORE_LIB)
 #include <QString>
 #endif
 
-#include <stdint.h>
+#include <cstdint>
 #include <string>
 
 namespace riff
@@ -39,8 +43,10 @@ struct RiffList;
 // to the type of data stored.
 //
 
-#pragma pack(4)
-template <typename D = uint8_t>
+constexpr int alignsize{sizeof(uint32_t)};
+
+#pragma pack(push, alignsize)
+template<typename D = uint8_t>
 struct RiffChunk
 {
     typedef RiffChunk<D> Type;
@@ -51,15 +57,15 @@ struct RiffChunk
 
     uint32_t type;
     uint32_t size;
-    D data[];
+    D data[1];
 
     //
     // Known types of chunks
     //
 
-    static const uint32_t TYPE_RIFF = 0x46464952;
-    static const uint32_t TYPE_LIST = 0x5453494C;
-    static const uint32_t TYPE_INFO = 0x4F464E49;
+    static constexpr uint32_t TYPE_RIFF = 0x46464952;
+    static constexpr uint32_t TYPE_LIST = 0x5453494C;
+    static constexpr uint32_t TYPE_INFO = 0x4F464E49;
 
     bool hasTypeRiff() const
     {
@@ -77,27 +83,30 @@ struct RiffChunk
                     reinterpret_cast<const char*>(&type), sizeof(type));
     }
 
-#if defined QT_VERSION
+#if defined(QT_CORE_LIB)
     QString typeToQString() const
     {
         return QString::fromLatin1(
                     reinterpret_cast<const char*>(&type), sizeof(type));
     }
-#endif /* QT_VERSION */
+#endif
 
     //
     // Get a pointer to the end of data section
     //
 
-    void* dataEnd()
+    void *dataEnd() { return reinterpret_cast<uint8_t *>(data) + size; }
+
+    //
+    // Get the offset to the beginning of the structure
+    //
+
+    const uintptr_t offset(uint8_t *baseptr) const
     {
-        return reinterpret_cast<const uint8_t*>(data) + size;
+        return reinterpret_cast<const uint8_t *>(&type) - baseptr;
     }
 
-    const void* dataEnd() const
-    {
-        return reinterpret_cast<const uint8_t*>(data) + size;
-    }
+    const void *dataEnd() const { return reinterpret_cast<const uint8_t *>(data) + size; }
 
     //
     // Get a pointer to the next chunk (16-bit aligned)
@@ -106,13 +115,13 @@ struct RiffChunk
     template <typename C = uint8_t>
     RiffChunk<C>* nextChunk()
     {
-        return reinterpret_cast<RiffChunk<C>*>(alignPointer(dataEnd(), 2));
+        return reinterpret_cast<RiffChunk<C> *>(alignPointer(dataEnd(), sizeof(int16_t)));
     }
 
     template <typename C = uint8_t>
     const RiffChunk<C>* nextChunk() const
     {
-        return reinterpret_cast<const RiffChunk<C>*>(alignPointer(dataEnd(), 2));
+        return reinterpret_cast<const RiffChunk<C> *>(alignPointer(dataEnd(), sizeof(int16_t)));
     }
 
     //
@@ -149,15 +158,14 @@ private:
 // Data type of data section in chunks of type RIFF list
 //
 
-#pragma pack(4)
-template <typename D = uint8_t>
+template<typename D = uint8_t>
 struct RiffList
 {
     typedef RiffList<D> Type;
     typedef RiffChunk<RiffList<D> > Chunk;
 
     uint32_t listType;
-    RiffChunk<D> chunks[];
+    RiffChunk<D> chunks[1];
 
     std::string listTypeToStdString() const
     {
@@ -165,19 +173,19 @@ struct RiffList
                            sizeof(listType));
     }
 
-#if defined QT_VERSION
+#if defined(QT_CORE_LIB)
     QString listTypeToQString() const
     {
-        return QString::fromLatin1(reinterpret_cast<const char*>(&listType),
-                                   sizeof(&listType));
+        return QString::fromLatin1(reinterpret_cast<const char *>(&listType), sizeof(listType));
     }
-#endif /* QT_VERSION */
+#endif
 
 private:
     RiffList()
         : RiffList<D>()
     {}
 };
+#pragma pack(pop)
 
 } // namespace riff
 
